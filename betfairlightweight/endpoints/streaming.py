@@ -5,6 +5,8 @@ from ..streaming import (
     BetfairStream,
     HistoricalStream,
     HistoricalGeneratorStream,
+    PostgresqlHistoricalStream,
+    PostgresqlHistoricalGeneratorStream,
 )
 
 
@@ -88,3 +90,25 @@ class Streaming:
         """
         listener = listener if listener else StreamListener()
         return HistoricalGeneratorStream(file_path, listener, operation)
+
+    @staticmethod
+    def create_postgresql_historical_stream(
+        connection_str: str = None,
+        query_str: str = None,
+        listener: BaseListener = None,
+        operation: str = "marketSubscription",
+        iter_size: int = 2000,
+    ) -> PostgresqlHistoricalStream:
+        listener = listener if listener else BaseListener()
+        return PostgresqlHistoricalStream(connection_str, query_str, listener, operation, iter_size)
+
+    @staticmethod
+    def create_postgresql_historical_generator_stream(
+            connection_str: str = None,
+            query_str: str = None,
+            listener: BaseListener = None,
+            operation: str = "marketSubscription",
+            iter_size: int = 2000,
+    ) -> PostgresqlHistoricalGeneratorStream:
+        listener = listener if listener else StreamListener()
+        return PostgresqlHistoricalGeneratorStream(connection_str, query_str, listener, operation, iter_size)

@@ -4,6 +4,8 @@ import logging
 import datetime
 import collections
 from typing import Optional
+import psycopg2
+import secrets
 
 from ..exceptions import SocketError, ListenerError
 from ..compat import json
@@ -338,3 +340,92 @@ class HistoricalGeneratorStream(HistoricalStream):
             else:
                 # if f has finished, also stop the stream
                 self.stop()
+
+
+class PostgresqlHistoricalStream:
+    def __init__(self, connection_str: str, query_str: str, listener: BaseListener, operation: str, iter_size: int = 2000):
+        self.connection_str = connection_str
+        self.query = query_str
+        self.iter_size = iter_size
+
+        self.connection = self._connect()
+        self.cursor = self.connection.cursor(name=f'bflw-{secrets.token_hex(16)}')
+        self.listener = listener
+        self.operation = operation
+        self._running = False
+
+    def _connect(self):
+        try:
+            try:
+                self.connection
+            except:
+                self.connection = False
+
+            if self.connection is False:
+                return psycopg2.connect(dsn=self.connection_str)
+                print('connected')
+            else:
+                return self.connection
+        except Exception as e:
+            print(e)
+            return None
+
+    def start(self) -> None:
+        self._connect
+        self._running = True
+        self._read_loop()
+
+    def stop(self) -> None:
+        if self.connection:
+            self.cursor.close()
+            self.connection.close()
+
+    def _read_loop(self) -> None:
+        self.listener.register_stream(0, self.operation)
+        self.cursor.execute(self.query)
+
+        while True:
+            # consume the result over a series of iterations
+            # with each iteration being iter_size records
+            records = self.cursor.fetchmany(self.iter_size)
+
+            if not records:
+                break
+
+            for r in records:
+                update = r[0]
+                if self.listener.on_data(update) is False:
+                    self.stop()
+                    raise ListenerError("POSTGRES", update)
+
+        self.stop()
+
+
+class PostgresqlHistoricalGeneratorStream(PostgresqlHistoricalStream):
+    def get_generator(self):
+        return self._read_loop
+
+    def _read_loop(self):
+        self._running = True
+        self.listener.register_stream(0, self.operation)
+
+        self.cursor.execute(self.query)
+
+        while True:
+            # consume the result over a series of iterations
+            # with each iteration being iter_size records
+            records = self.cursor.fetchmany(self.iter_size)
+
+            if not records:
+                self.stop()
+                break
+
+            for r in records:
+                update = r[0]
+                if self.listener.on_data(update) is False:
+                    self.stop()
+                    raise ListenerError("POSTGRES", update)
+                if not self._running:
+                    break
+                else:
+                    yield self.listener.snap()

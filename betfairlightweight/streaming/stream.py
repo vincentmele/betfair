@@ -132,7 +132,7 @@ class MarketStream(BaseStream):
                 if "marketDefinition" not in market_book:
                     logger.error(
                         "[MarketStream: %s] Unable to add %s to cache due to marketDefinition "
-                        "not being present (make sure EX_MARKET_DEF is requested)"
+                        "not be`ing present (make sure EX_MARKET_DEF is requested)"
                         % (self.unique_id, market_id)
                     )
                     continue
