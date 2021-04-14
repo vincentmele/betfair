@@ -342,6 +342,14 @@ class HistoricalGeneratorStream(HistoricalStream):
                 self.stop()
 
 
+def ResultIter(cursor, arraysize=250):
+    while True:
+        results = cursor.fetchmany(arraysize)
+        if not results:
+            break
+        for result in results:
+            yield result
+
 class PostgresqlHistoricalStream:
     def __init__(self, connection_str: str, query_str: str, listener: BaseListener, operation: str, iter_size: int = 2000):
         self.connection_str = connection_str
@@ -353,6 +361,9 @@ class PostgresqlHistoricalStream:
         self.listener = listener
         self.operation = operation
         self._running = False
+
+
+
 
     def _connect(self):
         try:
@@ -384,19 +395,26 @@ class PostgresqlHistoricalStream:
         self.listener.register_stream(0, self.operation)
         self.cursor.execute(self.query)
 
-        while True:
+        for result in ResultIter(self.cursor):
+            update = result[0]
+            if self.listener.on_data(update) is False:
+                self.stop()
+                raise ListenerError("POSTGRES", update)
+
+
+    #    while True:
             # consume the result over a series of iterations
             # with each iteration being iter_size records
-            records = self.cursor.fetchmany(self.iter_size)
+    #        records = self.cursor.fetchmany(self.iter_size)
 
-            if not records:
-                break
+    #        if not records:
+    #            break
 
-            for r in records:
-                update = r[0]
-                if self.listener.on_data(update) is False:
-                    self.stop()
-                    raise ListenerError("POSTGRES", update)
+    #        for r in records:
+    #        update = r[0]
+    #       if self.listener.on_data(update) is False:
+    #            self.stop()
+    #            raise ListenerError("POSTGRES", update)
 
         self.stop()
 

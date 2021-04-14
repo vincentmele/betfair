@@ -2,10 +2,15 @@ import logging
 
 import betfairlightweight
 from betfairlightweight import StreamListener
+from betfairlightweight.resources.bettingresources import MarketBook, RunnerBook
 
 import psycopg2
+import msgpack
+import ujson as json
 
-import datetime
+import examples.db
+
+from datetime import timedelta, datetime
 
 from typing import List, Dict
 
@@ -23,41 +28,15 @@ trading = betfairlightweight.APIClient("username", "password", app_key='')
 # create listener
 listener = StreamListener(max_latency=None)
 
-connection_str = "user=inplay host=127.0.0.1 port=5432 dbname=betfair" # password in ~/.pgpass
-
-def get_race_ids(connection_str: str = None, event_id: int = 4339,
-                start_time: datetime.datetime = None, end_time: datetime.datetime = None) -> List:
-    # connect to postgresql and retrieve list of races to backtest
-    table_name = 'inplay_history'
-
-    if not connection_str:
-        connection_str = "user=inplay host=127.0.0.1 port=5432 dbname=betfair" # password is in ~/.pgpass
-
-    psql_connection = psycopg2.connect(dsn=connection_str)
-    cursor = psql_connection.cursor()
-
-    params = {}
-    sql = f"SELECT DISTINCT id from {table_name} WHERE "
-
-    if start_time and end_time:
-        sql += "time > %(start_time)s and time < %(end_time)s AND "
-        params['start_time'] = start_time
-        params['end_time'] = end_time
-
-    if event_id:
-        sql += "cast(jsonb_path_query_first(data, '$.mc.marketDefinition.eventTypeId')->>0 as int4) = %(event_id)s " # 4339 is greyhounds, 7 is horses
-        params['event_id'] = event_id
-
-    sql += "order by id asc;"
-
-    cursor.execute(sql, params)
-    raceids = [r[0] for r in cursor.fetchall()]
-    cursor.close()
-    psql_connection.close()
-    return raceids
+def find_favorites(market_book: MarketBook, number: int = 1) -> List[RunnerBook]:
+    sorted_list = sorted(market_book.runners,
+                         key=lambda x: x.ex.available_to_back[0].price if len(x.ex.available_to_back) > 0 else 1000)
+    return sorted_list[:number]
 
 
-race_ids = get_race_ids(start_time=datetime.datetime(2020, 11, 5), end_time=datetime.datetime(2020, 11, 7))
+db = examples.db.DB()
+
+race_ids = db.get_race_ids(start_time=datetime(2020, 11, 12), end_time=datetime(2020, 11, 12, 23, 59))
 
 for id in race_ids:
     # create historical stream (update file_path to your file location)
@@ -66,7 +45,7 @@ for id in race_ids:
 
     query_str = f"SELECT data::text from inplay_history WHERE id = {id} order by time asc"
     stream = trading.streaming.create_postgresql_historical_generator_stream(
-        connection_str=connection_str, query_str=query_str, listener=listener,
+        connection_str=db.connection_str, query_str=query_str, listener=listener,
     )
 
     # create generator
@@ -77,14 +56,32 @@ for id in race_ids:
     #    for market_book in market_books:
     #        print(market_book)
 
+    def snapshot(_db, _market_book, _seconds_to_start):
+        _raceid = int(_market_book.market_id.replace('1.1', '11'))
+        _milliseconds_to_start = _seconds_to_start * 1000
+        _d = market_book.json()
+        _db.insert_checkpoint(_raceid, _milliseconds_to_start, _d)
+
+    snapshotted = {1800: None, 600: None, 300: None, 180: None, 120: None, 60: None, 30: None, 15: None, 10: None, 5: None}
     # print based on seconds to start
     for market_books in gen():
         for market_book in market_books:
             seconds_to_start = (
                 market_book.market_definition.market_time - market_book.publish_time
             ).total_seconds()
-            if seconds_to_start < 100:
-                print(market_book.market_id, seconds_to_start, market_book.total_matched)
+            for k in snapshotted.keys():
+                if seconds_to_start < k and not snapshotted[k]:
+                    snapshot(db, market_book, k)
+                    snapshotted[k] = True
+
+           # if seconds_to_start < 120 and not snapshotted['120']:
+          #      snapshot(db, market_book, seconds_to_start)
+                #abcde = msgpack.packb(json.loads(market_book.json()))
+                #packed = pack(abcde)
+                #json_abcde = market_book.json()
+            #    abc = find_favorites(market_book)
+           #     print(market_book.market_id, seconds_to_start, market_book.total_matched)
+
 
             # print winner details once market is closed
             if market_book.status == "CLOSED":
