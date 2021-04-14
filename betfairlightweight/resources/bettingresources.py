@@ -564,6 +564,7 @@ class MarketBook(BaseResource):
     def __init__(self, **kwargs):
         self.streaming_unique_id = kwargs.pop("streaming_unique_id", None)
         self.streaming_update = kwargs.pop("streaming_update", None)
+        self.streaming_snap = kwargs.pop("streaming_snap", False)
         self.market_definition = kwargs.pop("market_definition", None)
         super(MarketBook, self).__init__(**kwargs)
         self.market_id = kwargs.get("marketId")
@@ -633,7 +634,6 @@ class CurrentOrder:
         orderType: str,
         persistenceType: str,
         placedDate: str,
-        regulatorCode: str,
         selectionId: int,
         side: str,
         sizeCancelled: float,
@@ -643,10 +643,14 @@ class CurrentOrder:
         sizeVoided: float,
         status: str,
         priceSize: dict,
+        regulatorCode: str = None,
         matchedDate: str = None,
         customerStrategyRef: str = None,
         customerOrderRef: str = None,
         regulatorAuthCode: str = None,
+        lapsedDate: str = None,
+        lapseStatusReasonCode: str = None,
+        cancelledDate: str = None,
     ):
         self.bet_id = betId
         self.average_price_matched = averagePriceMatched
@@ -670,6 +674,16 @@ class CurrentOrder:
         self.customer_strategy_ref = customerStrategyRef
         self.customer_order_ref = customerOrderRef
         self.price_size = PriceSize(**priceSize)
+        self.lapsed_date = BaseResource.strip_datetime(lapsedDate)
+        self.lapse_status_reason_code = lapseStatusReasonCode
+        self.cancelled_date = BaseResource.strip_datetime(cancelledDate)
+
+
+class Match:
+    def __init__(self, selectionId: int, matchedLays: list, matchedBacks: list):
+        self.selection_id = selectionId
+        self.matched_lays = [PriceSize(**m) for m in matchedLays]
+        self.matched_backs = [PriceSize(**m) for m in matchedBacks]
 
 
 class CurrentOrders(BaseResource):
@@ -681,10 +695,12 @@ class CurrentOrders(BaseResource):
     def __init__(self, **kwargs):
         self.streaming_unique_id = kwargs.pop("streaming_unique_id", None)
         self.streaming_update = kwargs.pop("streaming_update", None)
+        self.streaming_snap = kwargs.pop("streaming_snap", False)
         self.publish_time = kwargs.pop("publish_time", None)
         super(CurrentOrders, self).__init__(**kwargs)
         self.more_available = kwargs.get("moreAvailable")
         self.orders = [CurrentOrder(**i) for i in kwargs.get("currentOrders")]
+        self.matches = [Match(**i) for i in kwargs.get("matches", [])]
 
 
 class ItemDescription:

@@ -1,14 +1,17 @@
 from typing import Optional
 from datetime import datetime
 
+
+BETFAIR_DATE_FORMAT = "%Y-%m-%dT%H:%M:%S.%fZ"
+
 basestring = (str, bytes)
 numeric_types = (int, float)
 integer_types = (int,)
 
-# will attempt to use c libraries if installed
+# will attempt to use C/Rust libraries if installed
 
 try:
-    import ujson as json
+    import orjson as json
 except ImportError:
     import json
 
@@ -27,6 +30,6 @@ except ImportError:
 
     def parse_datetime(datetime_string: str) -> Optional[datetime]:
         try:
-            return datetime.strptime(datetime_string, "%Y-%m-%dT%H:%M:%S.%fZ")
+            return datetime.strptime(datetime_string, BETFAIR_DATE_FORMAT)
         except ValueError:
             return

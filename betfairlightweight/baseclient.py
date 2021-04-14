@@ -1,5 +1,7 @@
 import os
 import time
+from typing import Union, Tuple
+
 import requests
 import collections
 
@@ -45,7 +47,7 @@ class BaseClient:
         italy=NAVIGATION.format(tld=".it", locale="it"),
     )
 
-    SESSION_TIMEOUT = collections.defaultdict(lambda: 8 * 60 * 60, italy=20 * 60)
+    SESSION_TIMEOUT = collections.defaultdict(lambda: 24 * 60 * 60, italy=20 * 60)
 
     def __init__(
         self,
@@ -54,7 +56,7 @@ class BaseClient:
         app_key: str = None,
         certs: str = None,
         locale: str = None,
-        cert_files: list = None,
+        cert_files: Union[Tuple[str], str, None] = None,
         lightweight: bool = False,
         session: requests.Session = None,
     ):
@@ -66,7 +68,8 @@ class BaseClient:
         :param str app_key: App Key for account, if None will look in .bashprofile
         :param str certs: Directory for certificates, if None will look in /certs
         :param str locale: Exchange to be used, defaults to international (.com) exchange
-        :param list cert_files: Certificate and key files. If None will use `self.certs`
+        :param list cert_files: if String, path to ssl client cert file (.pem).
+            If Tuple, ('cert', 'key') path pair. If None will use `self.certs`
         :param bool lightweight: If True endpoints will return dict not a resource (22x faster)
         :param requests.Session session: Pass requests session object, defaults to a new request each request
         """
@@ -144,12 +147,12 @@ class BaseClient:
             return False
 
     @property
-    def cert(self) -> list:
+    def cert(self) -> Union[Tuple[str], str]:
         """
         The betfair certificates, by default it looks for the
         certificates in /certs/.
 
-        :return: Path of cert files
+        :return: Tuple of cert files path or single path.
         :rtype: str
         """
         if self.cert_files is not None:
@@ -162,20 +165,22 @@ class BaseClient:
         except FileNotFoundError as e:
             raise CertsError(str(e))
 
-        cert = None
-        key = None
+        cert, key, pem = None, None, None
         for file in cert_path:
             ext = os.path.splitext(file)[-1]
             if ext in [".crt", ".cert"]:
                 cert = os.path.join(ssl_path, file)
             elif ext == ".key":
                 key = os.path.join(ssl_path, file)
-        if cert is None or key is None:
-            raise CertsError(
-                "Certificates not found in directory: '%s' (make sure .crt and .key file is present)"
-                % ssl_path
-            )
-        return [cert, key]
+            elif ext == ".pem":
+                pem = os.path.join(ssl_path, file)
+        if cert and key:
+            return (cert, key)
+        if pem:
+            return pem
+        msg = "Certificates not found in directory: '%s'" % ssl_path
+        hint = " (make sure .crt and .key pair or a single .pem is present)"
+        raise CertsError(msg + hint)
 
     @property
     def login_headers(self) -> dict:

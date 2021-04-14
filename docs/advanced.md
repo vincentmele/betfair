@@ -152,14 +152,28 @@ or on a per request basis:
 
 ### Dependencies
 
-By default betfairlightweight will install c based libraries if your os is either linux or darwin (Mac), due to difficulties in installation Windows users can install them seperatly:
+By default betfairlightweight will install C and Rust based libraries if your os is either linux or darwin (Mac), due to difficulties in installation Windows users can install them separately:
 
 ```bash
-pip install ciso8601=={version}
-``` 
-```bash
-pip install ujson=={version}
-``` 
+$ pip install betfairlightweight[speed]
+```
 
 !!! hint
-    It is likely that visual studio will need to be installed as well. 
+    If using windows it is likely that visual studio will need to be installed as well. 
+
+
+### Performance
+
+As detailed above using lightweight mode and the [speed] install improves the performance of bflw however it is possible to further improve the speed of backtesting by setting the following on the `Listener`:
+
+```python
+listener = betfairlightweight.StreamListener(
+    max_latency=None,  # ignore latency errors
+    output_queue=None,  # use generator rather than a queue (faster)
+    lightweight=True,  # lightweight mode is faster
+    debug=False,  # prevent logging calls on each update (slow)
+    update_clk=False,  # do not update clk on updates (not required when backtesting)
+)
+```
+
+For any further inspiration on speeding up backtesting have a read of the flumine source code, especially [patching.py](https://github.com/liampauling/flumine/blob/master/flumine/patching.py) and [historicalstream.py](https://github.com/liampauling/flumine/blob/master/flumine/streams/historicalstream.py)

@@ -56,6 +56,7 @@ class Streaming:
         file_path: str = None,
         listener: BaseListener = None,
         operation: str = "marketSubscription",
+        unique_id: int = 0,
     ) -> HistoricalStream:
         """
         Uses streaming listener/cache to parse betfair
@@ -65,17 +66,19 @@ class Streaming:
         :param str file_path: Path to historic betfair file
         :param BaseListener listener: Listener object
         :param str operation: Operation type
+        :param int unique_id: Stream id (added to updates)
 
         :rtype: HistoricalStream
         """
         listener = listener if listener else BaseListener()
-        return HistoricalStream(file_path, listener, operation)
+        return HistoricalStream(file_path, listener, operation, unique_id)
 
     @staticmethod
     def create_historical_generator_stream(
         file_path: str = None,
         listener: BaseListener = None,
         operation: str = "marketSubscription",
+        unique_id: int = 0,
     ) -> HistoricalGeneratorStream:
         """
         Uses generator listener/cache to parse betfair
@@ -85,6 +88,7 @@ class Streaming:
         :param str file_path: Path to historic betfair file
         :param BaseListener listener: Listener object
         :param str operation: Operation type
+        :param int unique_id: Stream id (added to updates)
 
         :rtype: HistoricalGeneratorStream
         """

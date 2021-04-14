@@ -3,6 +3,160 @@
 Release History
 ---------------
 
+2.12.1 (2021-03-09)
++++++++++++++++++++
+
+**Improvements**
+
+- Allow single file (.pem) certificate (@beci)
+- Tests directory cleanup
+
+**Bug Fixes**
+
+- #387 default total matched set to 0 (was None)
+- #384 make regulator code optional in CurrentOrder
+- #380 make name optional in scores
+
+**Dependencies**
+
+- orjson upgraded to 3.5.1
+
+2.12.0 (2021-01-25)
++++++++++++++++++++
+
+**Improvements**
+
+- #373 Streaming refactor (2-3x+ speed improvement) using extensive caching of dicts/resources
+- #369 Matches resource added
+- Regression tests added to streaming operations
+
+**Bug Fixes**
+
+- SP traded fix, order wrong and wrong way around vs api/site
+
+**Dependencies**
+
+- orjson upgraded to 3.4.7
+
+2.11.2 (2021-01-18)
++++++++++++++++++++
+
+**Improvements**
+
+- #370 Session timeout updated to 24hrs for international exchange
+- License update
+- Removed build.sh
+
+**Dependencies**
+
+- py3.5 testing removed
+
+2.11.1 (2020-12-26)
++++++++++++++++++++
+
+**Bug Fixes**
+
+- #366 Parse Error in Setup.py at '_require' (@mlabour)
+
+**Dependencies**
+
+- orjson upgraded to 3.4.6
+
+2.11.0 (2020-12-07)
++++++++++++++++++++
+
+**Improvements**
+
+- Stream updates
+
+**Dependencies**
+
+- orjson upgraded to 3.4.5
+
+2.10.2 (2020-11-28)
++++++++++++++++++++
+
+**Improvements**
+
+- #359 Exchange Stream API Release - Tuesday 8th December – New field - cancelledDate
+- Historical gen updated to only yield on data (reduces function calls in flumine)
+
+**Dependencies**
+
+- orjson upgraded to 3.4.4
+
+2.10.1 (2020-11-24)
++++++++++++++++++++
+
+**Bug Fixes**
+
+- Historical generator fixed to only call `create_resource` once per call (huge speed improvement)
+
+**Dependencies**
+
+- requests upgraded to <2.26.0
+
+2.10.0 (2020-11-02)
++++++++++++++++++++
+
+**Improvements**
+
+- #352 exchange stream API release (10/11/20)
+- Add py3.9 actions test
+
+**Dependencies**
+
+- orjson upgraded to 3.4.3
+
+2.9.2 (2020-10-26)
++++++++++++++++++++
+
+**Improvements**
+
+- Fix broken build from source due to missing requirements-speed.txt file (@synapticarbors)
+
+2.9.1 (2020-10-26)
++++++++++++++++++++
+
+**Improvements**
+
+- #345: Improve Historic.download_file (@mberk)
+
+**Dependencies**
+
+- orjson and ciso8601 moved to optional requirement using `pip install betfairlightweight[speed]`
+
+2.9.0 (2020-10-12)
++++++++++++++++++++
+
+**Improvements**
+
+- Fix types for list_race_details (synapticarbors)
+- #340 cache removal added on old markets (8 hours closed)
+- Streaming snap added to resources
+
+**Bug Fixes**
+
+- PR added to actions
+
+**Dependencies**
+
+- py3.9 added to tests
+- orjson updated to 3.4.0
+
+2.8.0 (2020-09-14)
++++++++++++++++++++
+
+**Improvements**
+
+- Transaction count updated to 5000
+- Minor codebase cleanup
+
+**Dependencies**
+
+- #328 ujson migrated to orjson
+- black updated to 20.8b1
+
 2.7.2 (2020-08-03)
 +++++++++++++++++++
 

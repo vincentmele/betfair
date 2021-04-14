@@ -12,6 +12,8 @@ from .bettingresources import (
     VenueResult,
     MarketCatalogue,
     MarketBook,
+    RunnerBook,
+    Match,
     CurrentOrders,
     ClearedOrders,
     MarketProfitLoss,
@@ -35,4 +37,4 @@ from .racecardresources import RaceCard
 
 from .inplayserviceresources import EventTimeline, Scores
 
-from .streamingresources import MarketDefinition, MarketDefinitionRunner
+from .streamingresources import MarketDefinition, MarketDefinitionRunner, Race

@@ -2,7 +2,7 @@ import logging
 import queue
 from typing import Optional
 
-from .stream import BaseStream, MarketStream, OrderStream
+from .stream import BaseStream, MarketStream, OrderStream, RaceStream
 from ..compat import json
 
 logger = logging.getLogger(__name__)
@@ -15,12 +15,12 @@ class BaseListener:
         self.connection_id = None
         self.status = None
         self.stream = None
-        self.stream_type = None  # marketSubscription/orderSubscription
+        self.stream_type = None  # marketSubscription/orderSubscription/raceSubscription
         self.stream_unique_id = None
         self.connections_available = None  # connection throttling
 
     def register_stream(self, unique_id: int, operation: str) -> None:
-        logger.info("Register: %s %s" % (operation, unique_id))
+        logger.info("[Register: %s]: %s" % (unique_id, operation))
         if self.stream is not None:
             logger.warning(
                 "[Listener: %s]: stream already registered, replacing data" % unique_id
@@ -28,6 +28,13 @@ class BaseListener:
         self.stream_unique_id = unique_id
         self.stream_type = operation
         self.stream = self._add_stream(unique_id, operation)
+
+    def update_unique_id(self, unique_id: int) -> None:
+        logger.info(
+            "[Register: %s]: Unique id updated on listener and stream" % unique_id
+        )
+        self.stream_unique_id = unique_id
+        self.stream.unique_id = unique_id
 
     def on_data(self, raw_data: str) -> None:
         logger.info(raw_data)
@@ -39,7 +46,7 @@ class BaseListener:
         :param list market_ids: Market ids to return
         :return: Return List of resources
         """
-        if self.stream:
+        if self.stream_type:  # quicker than self.stream due to __len__ call
             return self.stream.snap(market_ids)
         else:
             return []
@@ -61,9 +68,11 @@ class BaseListener:
 
     def _add_stream(self, unique_id: int, operation: str) -> BaseStream:
         if operation == "marketSubscription":
-            return MarketStream(self)
+            return MarketStream(self, unique_id)
         elif operation == "orderSubscription":
-            return OrderStream(self)
+            return OrderStream(self, unique_id)
+        elif operation == "raceSubscription":
+            return RaceStream(self, unique_id)
 
     def __str__(self) -> str:
         return "{0}".format(self.__class__.__name__)
@@ -83,15 +92,21 @@ class StreamListener(BaseListener):
         output_queue: queue.Queue = None,
         max_latency: Optional[float] = 0.5,
         lightweight: bool = False,
+        debug: bool = True,
+        update_clk: bool = True,
     ):
         """
         :param Queue output_queue: Queue used to return data
         :param float max_latency: Logs warning if latency above value
         :param bool lightweight: Returns dict instead of resource
+        :param bool debug: Debug logging calls enabled (setting to True has slight performance hit)
+        :param bool update_clk: initialClk/clk not updated on updates if False (quicker)
         """
         super(StreamListener, self).__init__(max_latency)
         self.output_queue = output_queue
         self.lightweight = lightweight
+        self.debug = debug
+        self.update_clk = update_clk
 
     def on_data(self, raw_data: str) -> Optional[bool]:
         """Called when raw data is received from connection.
@@ -118,7 +133,7 @@ class StreamListener(BaseListener):
             self._on_connection(data, unique_id)
         elif operation == "status":
             self._on_status(data, unique_id)
-        elif operation in ["mcm", "ocm"]:
+        elif operation in ["mcm", "ocm", "rcm"]:
             # historic data does not contain unique_id
             if self.stream_unique_id not in [unique_id, 0]:
                 logger.warning(
@@ -137,7 +152,7 @@ class StreamListener(BaseListener):
             unique_id = self.stream_unique_id
         self.connection_id = data.get("connectionId")
         logger.info(
-            "[Connect: %s]: connection_id: %s" % (unique_id, self.connection_id)
+            "[%s: %s]: connection_id: %s" % (self.stream, unique_id, self.connection_id)
         )
 
     def _on_status(self, data: dict, unique_id: int) -> None:
@@ -150,14 +165,17 @@ class StreamListener(BaseListener):
         if connections_available:
             self.connections_available = data.get("connectionsAvailable")
         logger.info(
-            "[Subscription: %s]: %s (%s connections available)"
-            % (unique_id, status_code, self.connections_available)
+            "[%s: %s]: %s (%s connections available)"
+            % (self.stream, unique_id, status_code, self.connections_available)
         )
 
     def _on_change_message(self, data: dict, unique_id: int) -> None:
         change_type = data.get("ct", "UPDATE")
 
-        logger.debug("[Subscription: %s]: %s: %s" % (unique_id, change_type, data))
+        if self.debug:
+            logger.debug(  # very slow call due to data dict
+                "[%s: %s]: %s: %s" % (self.stream, unique_id, change_type, data)
+            )
 
         if change_type == "SUB_IMAGE":
             self.stream.on_subscribe(data)
@@ -177,12 +195,19 @@ class StreamListener(BaseListener):
         """
         if data.get("statusCode") == "FAILURE":
             logger.error(
-                "[Subscription: %s] %s: %s"
-                % (unique_id, data.get("errorCode"), data.get("errorMessage"))
+                "[%s: %s]: %s: %s"
+                % (
+                    self.stream,
+                    unique_id,
+                    data.get("errorCode"),
+                    data.get("errorMessage"),
+                )
             )
             if data.get("connectionClosed"):
                 return True
         if self.status:
             # Clients shouldn't disconnect if status 503 is returned; when the stream
             # recovers updates will be sent containing the latest data
-            logger.warning("[Subscription: %s] status: %s" % (unique_id, self.status))
+            logger.warning(
+                "[%s: %s]: status: %s" % (self.stream, unique_id, self.status)
+            )

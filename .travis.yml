@@ -8,10 +8,6 @@ install:
 
 jobs:
   include:
-    - name: "Tests: python 3.5"
-      python: 3.5
-      script:
-        - coverage run --source=betfairlightweight setup.py test
     - name: "Tests: python 3.6"
       python: 3.6
       script:
@@ -23,6 +19,11 @@ jobs:
         - coverage run --source=betfairlightweight setup.py test
     - name: "Tests: python 3.8"
       python: 3.8
+      dist: xenial
+      script:
+        - coverage run --source=betfairlightweight setup.py test
+    - name: "Tests: python 3.9"
+      python: 3.9
       dist: xenial
       script:
         - coverage run --source=betfairlightweight setup.py test

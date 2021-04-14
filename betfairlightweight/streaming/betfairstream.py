@@ -26,6 +26,7 @@ class BetfairStream:
     HOSTS = collections.defaultdict(
         lambda: "stream-api.betfair.com",
         integration="stream-api-integration.betfair.com",
+        race="sports-data-stream-api.betfair.com",
     )
 
     def __init__(
@@ -61,8 +62,7 @@ class BetfairStream:
         self._read_loop()
 
     def stop(self) -> None:
-        """Stops read loop and closes socket if it has been created.
-        """
+        """Stops read loop and closes socket if it has been created."""
         self._running = False
 
         if self._socket is None:
@@ -75,8 +75,7 @@ class BetfairStream:
         self._socket = None
 
     def authenticate(self) -> int:
-        """Authentication request.
-        """
+        """Authentication request."""
         unique_id = self.new_unique_id()
         message = {
             "op": "authentication",
@@ -88,8 +87,7 @@ class BetfairStream:
         return unique_id
 
     def heartbeat(self) -> int:
-        """Heartbeat request to keep session alive.
-        """
+        """Heartbeat request to keep session alive."""
         unique_id = self.new_unique_id()
         message = {"op": "heartbeat", "id": unique_id}
         self._send(message)
@@ -131,7 +129,7 @@ class BetfairStream:
         }
         if initial_clk and clk:
             # if resubscribe only update unique_id
-            self.listener.stream_unique_id = unique_id
+            self.listener.update_unique_id(unique_id)
         else:
             self.listener.register_stream(unique_id, "marketSubscription")
         self._send(message)
@@ -170,9 +168,17 @@ class BetfairStream:
         }
         if initial_clk and clk:
             # if resubscribe only update unique_id
-            self.listener.stream_unique_id = unique_id
+            self.listener.update_unique_id(unique_id)
         else:
             self.listener.register_stream(unique_id, "orderSubscription")
+        self._send(message)
+        return unique_id
+
+    def subscribe_to_races(self) -> int:
+        """Race subscription request."""
+        unique_id = self.new_unique_id()
+        message = {"op": "raceSubscription", "id": unique_id}
+        self.listener.register_stream(unique_id, "raceSubscription")
         self._send(message)
         return unique_id
 
@@ -181,8 +187,7 @@ class BetfairStream:
         return self._unique_id
 
     def _connect(self) -> None:
-        """Creates socket and sets running to True.
-        """
+        """Creates socket and sets running to True."""
         self._socket = self._create_socket()
         self._running = True
 
@@ -261,12 +266,21 @@ class BetfairStream:
         if not self._running:
             self._connect()
             self.authenticate()
-        message_dumped = json.dumps(message) + self.__CRLF
+
+        message_dumped = json.dumps(message)
+
+        if not isinstance(
+            message_dumped, bytes
+        ):  # handles orjson as `orjson.dumps -> bytes` but `json.dumps -> str`
+            message_dumped = message_dumped.encode(encoding=self.__encoding)
+        crlf = bytes(self.__CRLF, encoding=self.__encoding)
+        message_dumped += crlf
+
         logger.debug(
             "[Subscription: %s] Sending: %s" % (self._unique_id, repr(message_dumped))
         )
         try:
-            self._socket.sendall(message_dumped.encode())
+            self._socket.sendall(message_dumped)
         except (socket.timeout, socket.error) as e:
             self.stop()
             raise SocketError("[Connect: %s]: Socket %s" % (self._unique_id, e))
@@ -283,15 +297,19 @@ class HistoricalStream:
     historical data.
     """
 
-    def __init__(self, file_path: str, listener: BaseListener, operation: str):
+    def __init__(
+        self, file_path: str, listener: BaseListener, operation: str, unique_id: int
+    ):
         """
         :param str file_path: Directory of betfair data
         :param BaseListener listener: Listener object
         :param str operation: Operation type
+        :param int unique_id: Stream id (added to updates)
         """
         self.file_path = file_path
         self.listener = listener
         self.operation = operation
+        self.unique_id = unique_id
         self._running = False
 
     def start(self) -> None:
@@ -302,7 +320,7 @@ class HistoricalStream:
         self._running = False
 
     def _read_loop(self) -> None:
-        self.listener.register_stream(0, self.operation)
+        self.listener.register_stream(self.unique_id, self.operation)
         with open(self.file_path, "r") as f:
             for update in f:
                 if self.listener.on_data(update) is False:
@@ -326,7 +344,7 @@ class HistoricalGeneratorStream(HistoricalStream):
 
     def _read_loop(self) -> dict:
         self._running = True
-        self.listener.register_stream(0, self.operation)
+        self.listener.register_stream(self.unique_id, self.operation)
         with open(self.file_path, "r") as f:
             for update in f:
                 if self.listener.on_data(update) is False:
@@ -336,7 +354,9 @@ class HistoricalGeneratorStream(HistoricalStream):
                 if not self._running:
                     break
                 else:
-                    yield self.listener.snap()
+                    data = self.listener.snap()
+                    if data:  # can return empty list
+                        yield data
             else:
                 # if f has finished, also stop the stream
                 self.stop()
